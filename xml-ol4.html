@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+
+<!--<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>-->
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.5.0/jquery.min.js"></script>
+<script src="jQuery.download.js"></script>
+<script src="http://openlayers.org/dev/OpenLayers.js"></script>
+<link rel="stylesheet" href="http://openlayers.org/dev/theme/default/style.css" type="text/css">
+    <link rel="stylesheet" href="http://openlayers.org/dev/examples/style.css" type="text/css">
+<script>
+var response;
+var olFeatures = new Array();
+
+//var xmlResults = new Array();
+
+var lon = 5;
+var lat = 40;
+var zoom = 5;
+var map, layer;
+
+function xml_to_string(xml_node)
+    {
+        if (xml_node.xml)
+            return xml_node.xml;
+        else if (XMLSerializer)
+        {
+            var xml_serializer = new XMLSerializer();
+            return xml_serializer.serializeToString(xml_node);
+        }
+        else
+        {
+            alert("ERROR: Extremely old browser");
+            return "";
+        }
+    }
+	
+        function init(){
+            map = new OpenLayers.Map('map');
+            layer = new OpenLayers.Layer.WMS( "OpenLayers WMS",
+                    "http://vmap0.tiles.osgeo.org/wms/vmap0", {layers: 'basic'} );
+            map.addLayer(layer);
+            //map.zoomToExtent(new OpenLayers.Bounds(11.9620078,54.0177347,12.9466556,54.1579839));
+			map.zoomToExtent(new OpenLayers.Bounds(11.5,54,13.5,54.5));
+		    }
+
+function getResult(coord) {
+	var xmlRes;
+		var data = 
+		'<aas:AAS version="1.0" xmlns:aas="http://www.geoinform.fh-mainz.de/aas" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.geoinform.fh-mainz.de/aas">' +
+		'<aas:RequestHeader> </aas:RequestHeader>' +
+		'<aas:Request methodName="AccessibilityRequest" requestID="4711" version="1.0">' +
+		'<aas:DetermineAccessibilityRequest>' +
+		'<aas:Accessibility>' +
+		'<aas:AccessibilityPreference>' +
+		'<aas:Time Duration="PT0H10M00S" />' +
+		'</aas:AccessibilityPreference>' +
+		'<aas:LocationPoint>' +
+		'<aas:Position>' +
+		'<gml:Point xmlns:gml="http://www.opengis.net/gml" srsName="EPSG:4326">' +
+		'<gml:pos>' + coord + '</gml:pos>' +
+		'</gml:Point>' +
+		'</aas:Position>' +
+		'</aas:LocationPoint>' +
+		'</aas:Accessibility>' +
+		'<aas:AccessibilityGeometryRequest>' +
+		'<aas:PolygonPreference>Detailed</aas:PolygonPreference>' +
+		'</aas:AccessibilityGeometryRequest>' +
+		'</aas:DetermineAccessibilityRequest>' +
+		'</aas:Request>' +
+		'</aas:AAS>';
+		$.support.cors = true;
+		$.ajax({
+			//url: 'http://openrouteservice.org/php/AAS_AccessibilityRequest.php',
+			//url: 'proxy.php?url=http%3A%2F%2Fopenrouteservice.org%2Fphp%2FAAS_AccessibilityRequest.php',
+			url: 'proxy.php?url=http%3A%2F%2Fopenrouteservice.org%2Fphp%2FAAS_AccessibilityRequest.php&mode=native',
+			//url: 'proxy.php?url=http://openls.geog.uni-heidelberg.de/osm/eu/analyse&mode=native',
+			//url: 'proxy.php?url=http%3A%2F%2Fopenls.geog.uni-heidelberg.de%2Fosm%2Feu%2Fanalyse',
+			type: 'POST',
+			crossDomain: true,
+			data: { Position: coord, Minutes : document.getElementById('time').value} ,
+			//data: data,
+			dataType: 'text',
+			//make call synchronus to be able to save it in array
+			async:false,
+			success: function (result) {
+				//alert(result);
+				//console.log(result);
+				//document.getElementById('output').innerHTML = result;
+				
+				//console.log(result.search('<'));
+				var subResult = result.substring(result.search('<'),result.length);
+				//console.log(subResult);
+				
+				xmlRes = $.parseXML(subResult);
+				//alert(xmlRes);
+				//document.getElementById('output').innerHTML = "parsed result: " + xmlRes;
+				//alert(xmlRes);
+			},
+			error: function (jqXHR, tranStatus, errorThrown) {
+				alert(errorThrown);
+			}
+		});
+		return xmlRes;
+}
+
+function getResultInt() {
+  $.ajax({
+    type: "GET",
+    url: "output-gml.xml",
+	//url: "jquery_xml.xml",
+	//url: "output-small.xml",
+    dataType: "xml",
+    success: function(xml) { 
+		xmlRes = xml;
+		document.getElementById('output').innerHTML = xmlRes;
+	}
+  });
+}
+
+function drawPolygons(points,address) {
+	console.log("bin jetzt in drawPolygons()!");
+	
+	var ring = new OpenLayers.Geometry.LinearRing(points);
+	var polygon = new OpenLayers.Geometry.Polygon([ring]);
+
+	// create some attributes for the feature
+	var attributes = {address: address};
+
+	var feature = new OpenLayers.Feature.Vector(polygon, attributes);
+	olFeatures.push(feature);
+	//var layerVec = new OpenLayers.Layer.Vector("Test");
+	
+	var layerVec = new OpenLayers.Layer.Vector("Test", {
+                styleMap: new OpenLayers.StyleMap({'default':{
+                    strokeColor: "#FF5500",
+                    strokeOpacity: 1,
+                    strokeWidth: 1,
+                    fillColor: "#FF5500",
+                    fillOpacity: 0.5,
+                    pointRadius: 6,
+                    pointerEvents: "visiblePainted",
+                    // label with \n linebreaks
+                    label : "${address}",
+                    
+                    fontColor: "red",
+                    fontSize: "12px",
+                    fontFamily: "Courier New, monospace",
+                    fontWeight: "bold",
+                    labelOutlineColor: "white",
+                    labelOutlineWidth: 3
+                }})
+	});
+	layerVec.addFeatures([feature]);
+			
+	map.addLayer(layerVec);
+}
+
+function test() {
+	alert('Test!');
+}
+
+function testPOST() {
+	var xmlRes;
+	var coord = document.getElementById('coords').value;
+		var data = 
+		'<aas:AAS version="1.0" xmlns:aas="http://www.geoinform.fh-mainz.de/aas" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.geoinform.fh-mainz.de/aas">' +
+		'<aas:RequestHeader> </aas:RequestHeader>' +
+		'<aas:Request methodName="AccessibilityRequest" requestID="4711" version="1.0">' +
+		'<aas:DetermineAccessibilityRequest>' +
+		'<aas:Accessibility>' +
+		'<aas:AccessibilityPreference>' +
+		'<aas:Time Duration="PT0H10M00S" />' +
+		'</aas:AccessibilityPreference>' +
+		'<aas:LocationPoint>' +
+		'<aas:Position>' +
+		'<gml:Point xmlns:gml="http://www.opengis.net/gml" srsName="EPSG:4326">' +
+		'<gml:pos>' + coord + '</gml:pos>' +
+		'</gml:Point>' +
+		'</aas:Position>' +
+		'</aas:LocationPoint>' +
+		'</aas:Accessibility>' +
+		'<aas:AccessibilityGeometryRequest>' +
+		'<aas:PolygonPreference>Detailed</aas:PolygonPreference>' +
+		'</aas:AccessibilityGeometryRequest>' +
+		'</aas:DetermineAccessibilityRequest>' +
+		'</aas:Request>' +
+		'</aas:AAS>';
+		$.support.cors = true;
+		$.ajax({
+			//url: 'http://openrouteservice.org/php/AAS_AccessibilityRequest.php',
+			//url: 'proxy.php?url=http%3A%2F%2Fopenrouteservice.org%2Fphp%2FAAS_AccessibilityRequest.php',
+			//url: 'proxy3.php?url=http%3A%2F%2Fopenrouteservice.org%2Fphp%2FAAS_AccessibilityRequest.php&mode=native',
+			//url: 'http://openls.geog.uni-heidelberg.de/osm/eu/analyse&mode=native',
+			url: 'proxy3.php?url=http%3A%2F%2Fopenls.geog.uni-heidelberg.de%2Fosm%2Feu%2Fanalyse',
+			type: 'POST',
+			crossDomain: true,
+			//data: { Position: coord, Minutes : document.getElementById('time').value} ,
+			data: data,
+			dataType: 'text',
+			//make call synchronus to be able to save it in array
+			async:false,
+			success: function (result) {
+				//alert(result);
+				//console.log(result);
+				document.getElementById('output').innerHTML = result;
+				
+				//console.log(result.search('<'));
+				var subResult = result.substring(result.search('<'),result.length);
+				//console.log(subResult);
+				
+				//xmlRes = $.parseXML(subResult);
+				
+				//alert(xmlRes);
+				//document.getElementById('output').innerHTML = "parsed result: " + xmlRes;
+				//alert(xmlRes);
+			},
+			error: function (jqXHR, tranStatus, errorThrown) {
+				alert(errorThrown);
+			}
+		});
+		//return xmlRes;
+}
+
+function testGET() {
+	var addresses = document.getElementById('addresses').value;
+
+	var lines = addresses.split('\n');
+	var resultNominatim;
+	var xmlRes;
+	var resultNominatimXML;
+	for(var i = 0;i < lines.length;i++){
+		$("#output").append(lines[i] + "<br>");
+		var uriEncodeAdress = encodeURIComponent(lines[i]);
+		//$("#output").append(uriEncodeAdress + "<br>");
+		var replaceAdress = lines[i].replace(/ /g, "+");
+		//$("#output").append(replaceAdress + "<br>");
+		var serAddress = escape(lines[i] + "<br>");
+		//$("#output").append(serAddress + "<br>");
+		//var replaceAdress2 = lines[i].replace(/ /g, "%2520");
+		var replaceAdress2 = uriEncodeAdress.replace(/%20/g, "%2520");
+		//$("#output").append("replaceAdress2: " + replaceAdress2 + "<br>");
+		//var url = "http://nominatim.openstreetmap.org/search?q=" + uriEncodeAdress + "&format=xml&polygon=1&addressdetails=1";
+		
+		//var url = "proxy.php?url=http%3A%2F%2Fnominatim.openstreetmap.org%2Fsearch%3Fq%3D" + uriEncodeAdress + "%26format%3Dxml%26polygon%3D1%26addressdetails%3D1&mode=native";
+		
+		var url = "proxy3.php?url=http%3A%2F%2Fnominatim.openstreetmap.org%2Fsearch%3Fq%3D" + replaceAdress2 + "%26format%3Dxml%26polygon%3D1%26addressdetails%3D1&full_headers=1&full_status=1";
+		$.ajax({
+			url: url,
+			async:false,
+			success: function (result) {
+				//alert(result);
+				//console.log(result);
+				//document.getElementById('output').innerHTML = result;
+				//$("#output").append("Data Loaded: " + xml_to_string(result) + "<br>");
+				//$("#output").append("Data Loaded: " + result + "<br>");
+				resultNominatim = result;
+				var jsonData = JSON.parse(result);
+				console.log("Complete jsonData: " + jsonData);
+				//console.log("Stripped jsonData: " + jsonData.contents);
+				resultNominatimXML = $.parseXML(jsonData.contents);
+				//console.log("XML: " + xml_to_string(xmlRes));
+			},
+			error: function (jqXHR, tranStatus, errorThrown) {
+				alert(errorThrown);
+			},
+			dataType: 'text'
+			});
+		
+		var lat = $(resultNominatimXML).find("place:first").attr('lat');
+		if (!lat || lat.length === 0) $("#output").append("Geocoding fehlgeschlagen<br/>");
+		else $("#output").append("Geocoding erfolgreich<br />");
+		
+		var lon = $(resultNominatimXML).find("place:first").attr('lon');
+		var lonLat = lon + ',' + lat;
+		$("#output").append("LonLat: " + lonLat + "<br>");
+		
+	}
+}
+
+function makeGeoJSON() {
+	//alert("Test!");
+	var geoJSON = new OpenLayers.Format.GeoJSON(),
+    geoJSONText = geoJSON.write(olFeatures);
+	$("#output").append(geoJSONText + "<br>Go to <a href=\"http://ogre.adc4gis.com/\">here</a>");
+	//var val = geoJSONText.replace(/"/g,'"');
+	//$("#output").append(val + "<br>");
+	//var data = { json: JSON.stringify(geoJSONText), outputName : 'test.zip'};
+	//var data = { json: geoJSONText, outputName : 'test.zip'};
+	var data = { json: val, outputName : 'test.zip'};
+	var url = 'http://ogre.adc4gis.com/convertJson';
+	//$.download(url,data);
+	
+	/*
+			$.ajax({
+			url: url,
+			//url: 'http://openrouteservice.org/php/AAS_AccessibilityRequest.php',
+			//url: 'proxy.php?url=http%3A%2F%2Fopenrouteservice.org%2Fphp%2FAAS_AccessibilityRequest.php',
+			//url: 'proxy.php?url=http%3A%2F%2Fopenrouteservice.org%2Fphp%2FAAS_AccessibilityRequest.php&mode=native',
+			//url: 'proxy.php?url=http://openls.geog.uni-heidelberg.de/osm/eu/analyse&mode=native',
+			//url: 'proxy.php?url=http%3A%2F%2Fopenls.geog.uni-heidelberg.de%2Fosm%2Feu%2Fanalyse',
+			type: 'POST',
+			crossDomain: true,
+			data: data ,
+			//data: data,
+			dataType: 'text',
+			//make call synchronus to be able to save it in array
+			async:false,
+			success: function (result) {
+				//window.open(result);
+				alert(result);
+				//console.log(result);
+				//document.getElementById('output').innerHTML = result;
+				
+				//console.log(result.search('<'));
+				//var subResult = result.substring(result.search('<'),result.length);
+				//console.log(subResult);
+				
+				//xmlRes = $.parseXML(subResult);
+				//alert(xmlRes);
+				//document.getElementById('output').innerHTML = "parsed result: " + xmlRes;
+				//alert(xmlRes);
+			},
+			error: function (jqXHR, tranStatus, errorThrown) {
+				alert(errorThrown);
+			}
+		});
+		*/
+}
+
+/**
+	@TODO: Geocode als eigene Funktion!
+*/
+function getAccessibilityWithAddresses() {
+	var addresses = document.getElementById('addresses').value;
+
+	var lines = addresses.split('\n');
+	var resultNominatim;
+	var xmlRes;
+	var resultNominatimXML;
+	for(var i = 0;i < lines.length;i++){
+		$("#output").append(lines[i] + "<br>");
+		var uriEncodeAdress = encodeURIComponent(lines[i]);
+		//$("#output").append(uriEncodeAdress + "<br>");
+		var replaceAdress = lines[i].replace(/ /g, "+");
+		//$("#output").append(replaceAdress + "<br>");
+		var serAddress = escape(lines[i] + "<br>");
+		//$("#output").append(serAddress + "<br>");
+		//var replaceAdress2 = lines[i].replace(/ /g, "%2520");
+		var replaceAdress2 = uriEncodeAdress.replace(/%20/g, "%2520");
+		//$("#output").append("replaceAdress2: " + replaceAdress2 + "<br>");
+		//var url = "http://nominatim.openstreetmap.org/search?q=" + uriEncodeAdress + "&format=xml&polygon=1&addressdetails=1";
+		
+		//var url = "proxy.php?url=http%3A%2F%2Fnominatim.openstreetmap.org%2Fsearch%3Fq%3D" + uriEncodeAdress + "%26format%3Dxml%26polygon%3D1%26addressdetails%3D1&mode=native";
+		
+		var url = "proxy.php?url=http%3A%2F%2Fnominatim.openstreetmap.org%2Fsearch%3Fq%3D" + replaceAdress2 + "%26format%3Dxml%26polygon%3D1%26addressdetails%3D1&full_headers=1&full_status=1";
+		$.ajax({
+			url: url,
+			async:false,
+			success: function (result) {
+				//alert(result);
+				//console.log(result);
+				//document.getElementById('output').innerHTML = result;
+				//$("#output").append("Data Loaded: " + xml_to_string(result) + "<br>");
+				//$("#output").append("Data Loaded: " + result + "<br>");
+				resultNominatim = result;
+				var jsonData = JSON.parse(result);
+				console.log("Complete jsonData: " + jsonData);
+				//console.log("Stripped jsonData: " + jsonData.contents);
+				resultNominatimXML = $.parseXML(jsonData.contents);
+				//console.log("XML: " + xml_to_string(xmlRes));
+			},
+			error: function (jqXHR, tranStatus, errorThrown) {
+				alert(errorThrown);
+			},
+			dataType: 'text'
+			});
+		
+		var lat = $(resultNominatimXML).find("place:first").attr('lat');
+		if (!lat || lat.length === 0) $("#output").append("Geocoding fehlgeschlagen<br/>");
+		else $("#output").append("Geocoding erfolgreich<br />");
+		
+		var lon = $(resultNominatimXML).find("place:first").attr('lon');
+		var lonLat = lon + ',' + lat;
+		$("#output").append("LonLat: " + lonLat + "<br>");
+		
+		
+		xmlRes = getResult(lonLat);
+
+		//$("#output").append("returned: " + xmlRes);
+
+		parseXml(xmlRes, lines[i]);
+	}
+}
+
+function getAccessibilityWithCoords() {
+	var xmlRes;
+	var coords = document.getElementById('coords').value;
+	//$("#output").append(coords);
+	var lines = coords.split('\n');
+	for(var i = 0;i < lines.length;i++){
+		$("#output").append(lines[i] + "<br>");
+		xmlRes = getResult(lines[i]);
+		//alert(xmlRes);
+		$("#output").append("returned: " + xmlRes);
+		//console.dir(xmlRes);
+		//console.log(xml_to_string(xmlRes));
+		parseXml(xmlRes,lines[i]);
+	}
+}
+
+function parseXml(xmlResult,address) {
+	console.log("bin jetzt in parseXml()!");
+	var xmlP;
+	var xmlLeer;
+	var xmlX;
+	var xmlY;
+	var firstLinearRing;
+	//find every gml:pos in all LinearRing elements
+	//$(xmlRes).find("gml\\:pos").each(function()  {
+	
+	//for (i=0; i < xmlResult.length ; i++ ) {
+		//$("#output").append(xmlResult + "<br />");
+	//}
+	
+	//find only the first LinearRing element because the rest is broken
+	firstLinearRing = $(xmlResult).find("gml\\:LinearRing:first, LinearRing:first");
+	//console.log("firstLinearRing: " + xml_to_string(firstLinearRing));
+	console.log("firstLinearRing: " + firstLinearRing.text());
+	if (!firstLinearRing || firstLinearRing.length === 0) $("#output").append("Erreichbarkeitsanalyse fehlgeschlagen<br/><br>");
+	else $("#output").append("Erreichbarkeitsanalyse erfolgreich<br /><br>");
+	//console.log("firstLinearRing: " + firstLinearRing);
+	var points = new Array();
+	//console.log("bin jetzt VOR parseXml() Schleife!");
+	firstLinearRing.find("gml\\:pos, pos").each(function() {
+		//console.log("bin jetzt in parseXml() Schleife!");
+		xmlP = $(this).text();
+		xmlLeer = xmlP.search(' ');
+		xmlX = xmlP.substring(0,xmlLeer);
+		xmlY = xmlP.substring(xmlLeer,xmlP.length);
+		var point = new OpenLayers.Geometry.Point(xmlX,xmlY);
+		points.push(point);
+	});
+	//console.log("bin jetzt NACH parseXml() Schleife!");
+	
+	/*
+	for (i=0; i < points.length ; i++ ) {
+		$("#output").append(points[i] + "<br />");
+	}
+	*/
+	drawPolygons(points,address);
+	
+	
+}
+</script>
+</head>
+
+<body onload="init()">
+<b>Koordinaten</b>
+<textarea id="coords" cols="50" rows="10">12.1073,54.072694
+12.077923,54.174301
+13.380356,54.077778</textarea>
+<i>e.g. 12.077923,54.174301</i>
+<br>
+<br>
+<b><i>oder</i></b>
+<br>
+<br>
+<b>Adressen</b>
+<textarea id="addresses" cols="50" rows="10">Erich- Schlesinger- Str. 24 18059 Rostock
+Am Tannenkopp 6 19195 Tessin
+Friedrich-Trendelenburg-Allee 1 18273 Güstrow
+Kröpeliner Str. 17b 18209 Bad Doberan</textarea>
+<i>e.g. Friedrich-Trendelenburg-Allee 1 18273 Güstrow</i>
+<br>
+<br>
+<b>Minuten</b>
+<input id="time" type="text" size="10" maxlength="10" value="10">
+
+<div id="map" class="smallmap"></div>
+
+<div name="test" id="test" height="45%" width="100%"></div>
+
+<button onclick="getAccessibilityWithCoords();">Erreichbarkeitsanalyse mit Koordinaten berechnen</button>
+<br>
+<button onclick="getAccessibilityWithAddresses();">Erreichbarkeitsanalyse mit Adressen berechnen</button>
+<br>
+<button onclick="makeGeoJSON();">Erzeuge GeoJSON</button>
+<br>
+<br>
+<button onclick="getResultInt();">Get Internal Content</button>
+<br>
+<button onclick="getResult();">Get External Content</button>
+<br>
+<button onclick="test();">Test</button>
+<br>
+<button onclick="testGET();">TestGET</button>
+<br>
+<button onclick="testPOST();">TestPOST</button>
+<br>
+<br>
+<i>Console</i>
+<div name="output" id="output" height="45%" width="100%"></div>
+
+</body>
+</html>
